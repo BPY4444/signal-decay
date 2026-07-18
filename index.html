@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SIGNAL DECAY</title>
+<style>
+  :root {
+    --cyan: #4be8ff;
+    --cyan-dim: #2a97ad;
+    --amber: #ffb545;
+    --red: #ff4d4d;
+    --violet: #b47aff;
+    --panel: rgba(8, 14, 20, 0.82);
+    --panel-border: rgba(75, 232, 255, 0.35);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0714; }
+  body, button, input {
+    font-family: 'Consolas', 'Menlo', 'DejaVu Sans Mono', monospace;
+    color: var(--cyan);
+  }
+  #game { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: crosshair; }
+
+  /* ---------- generic ---------- */
+  .hidden { display: none !important; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    box-shadow: 0 0 24px rgba(75, 232, 255, 0.08), inset 0 0 60px rgba(0,0,0,0.5);
+    backdrop-filter: blur(3px);
+    position: relative;
+  }
+  .panel::after { /* scanlines */
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(0deg, transparent 0 2px, rgba(75,232,255,0.03) 2px 3px);
+  }
+  .panel h2 {
+    font-size: 13px; letter-spacing: 3px; color: var(--cyan);
+    border-bottom: 1px solid var(--panel-border); padding: 8px 12px; text-transform: uppercase;
+  }
+  button.ui-btn {
+    background: rgba(75,232,255,0.08); border: 1px solid var(--panel-border);
+    color: var(--cyan); padding: 6px 14px; cursor: pointer; font-size: 12px;
+    letter-spacing: 1px; text-transform: uppercase;
+  }
+  button.ui-btn:hover { background: rgba(75,232,255,0.22); }
+  button.ui-btn.active { background: var(--cyan); color: #05131a; }
+  button.ui-btn:disabled { opacity: 0.35; cursor: default; }
+
+  /* ---------- HUD ---------- */
+  #hud { position: absolute; inset: 0; pointer-events: none; user-select: none; }
+  #hud .panel { pointer-events: none; }
+
+  #vitals { position: absolute; left: 18px; bottom: 18px; width: 240px; padding: 10px 12px; }
+  .bar { height: 9px; background: rgba(255,255,255,0.07); margin: 5px 0; position: relative; overflow: hidden; }
+  .bar .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; transition: width 0.12s linear; }
+  #health-fill { background: linear-gradient(90deg, #d8434a, #ff7a5e); }
+  #shield-fill { background: linear-gradient(90deg, #2a97ad, #4be8ff); }
+  #stamina-fill { background: linear-gradient(90deg, #c9a145, #ffdf8a); }
+  .bar-label { font-size: 9px; letter-spacing: 2px; opacity: 0.7; }
+  #xp-row { margin-top: 7px; display: flex; align-items: center; gap: 8px; }
+  #xp-row .bar { flex: 1; height: 4px; margin: 0; }
+  #xp-fill { background: var(--violet); }
+  #level-label { font-size: 10px; color: var(--violet); }
+
+  #salvage-row { position: absolute; left: 18px; bottom: 148px; padding: 6px 12px; font-size: 11px; letter-spacing: 1px; display: flex; gap: 14px; }
+  #salvage-row span b { color: #fff; font-weight: normal; }
+  #sv-cores { color: var(--violet); }
+  #sv-grenades { color: var(--amber); }
+
+  #weapon-panel { position: absolute; right: 18px; bottom: 18px; padding: 10px 16px; text-align: right; min-width: 180px; }
+  #weapon-name { font-size: 15px; letter-spacing: 2px; color: #fff; }
+  #weapon-ammo { font-size: 11px; color: var(--cyan-dim); margin-top: 4px; }
+
+  #bark-ticker {
+    position: absolute; top: 54px; left: 50%; transform: translateX(-50%);
+    max-width: 720px; min-width: 200px; padding: 8px 18px; text-align: center;
+    font-size: 14px; color: #d9f6ff; text-shadow: 0 0 8px rgba(75,232,255,0.6);
+    opacity: 0; transition: opacity 0.35s;
+  }
+  #bark-ticker.show { opacity: 1; }
+  #bark-ticker::before { content: 'WRECK // '; color: var(--cyan-dim); font-size: 11px; }
+
+  #compass { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); width: 440px; height: 26px; overflow: hidden; }
+  #compass-strip { position: absolute; top: 0; left: 0; height: 100%; white-space: nowrap; font-size: 11px; line-height: 26px; }
+  #compass::after { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--amber); }
+
+  #target-frame { position: absolute; top: 90px; left: 50%; transform: translateX(-50%); width: 260px; padding: 8px 12px; }
+  #tf-name { font-size: 13px; color: #fff; letter-spacing: 2px; }
+  #tf-class { font-size: 9px; color: var(--cyan-dim); letter-spacing: 2px; margin: 2px 0 6px; }
+  #tf-hull-fill { background: linear-gradient(90deg, #d8434a, #ff7a5e); }
+  #tf-stab-fill { background: linear-gradient(90deg, #2a97ad, #4be8ff); }
+
+  #boss-frame { position: absolute; top: 46px; left: 50%; transform: translateX(-50%); width: 480px; padding: 8px 14px; text-align: center; }
+  #boss-name { font-size: 15px; letter-spacing: 6px; color: var(--violet); }
+  #boss-plates { display: flex; gap: 6px; margin-top: 6px; }
+  #boss-plates .bar { flex: 1; }
+  #boss-hint { font-size: 10px; color: var(--cyan-dim); margin-top: 5px; letter-spacing: 1px; }
+
+  #reticle { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 6px; height: 6px; border-radius: 50%; border: 1px solid rgba(75,232,255,0.9); box-shadow: 0 0 6px rgba(75,232,255,0.8); }
+  #reticle.hostile { border-color: var(--red); box-shadow: 0 0 6px var(--red); }
+
+  #interact-prompt { position: absolute; left: 50%; bottom: 24%; transform: translateX(-50%); padding: 6px 16px; font-size: 13px; letter-spacing: 1px; color: #fff; }
+  #interact-prompt b { color: var(--amber); }
+
+  #build-hint { position: absolute; left: 50%; bottom: 16%; transform: translateX(-50%); padding: 6px 16px; font-size: 12px; color: var(--amber); }
+
+  #dmgnums { position: absolute; inset: 0; overflow: hidden; }
+  .dmgnum { position: absolute; font-size: 13px; color: #ffd2a1; text-shadow: 0 0 4px #000; will-change: transform, opacity; }
+  .dmgnum.stab { color: #8ef0ff; }
+  .dmgnum.crit { color: #ff8181; font-size: 16px; }
+
+  #toasts { position: absolute; right: 18px; top: 90px; width: 260px; display: flex; flex-direction: column; gap: 6px; }
+  .toast { padding: 6px 10px; font-size: 11px; letter-spacing: 1px; border-left: 2px solid var(--cyan); animation: toastin 0.25s ease-out; }
+  @keyframes toastin { from { transform: translateX(30px); opacity: 0; } }
+
+  #damage-flash { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 40%, rgba(255,40,40,0.45) 100%); opacity: 0; pointer-events: none; transition: opacity 0.5s; }
+
+  /* ---------- hack radial ---------- */
+  #hack-radial { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center; }
+  #hack-canvas { display: block; }
+  #hack-hint { margin-top: -40px; font-size: 12px; letter-spacing: 2px; color: var(--cyan); text-shadow: 0 0 8px rgba(75,232,255,0.8); }
+
+  /* ---------- Q menu ---------- */
+  #qmenu { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 480px; max-height: 70%; overflow-y: auto; pointer-events: auto; }
+  #qmenu-list { padding: 10px 14px; font-size: 12px; line-height: 1.9; }
+  #qmenu-list .qunit { border-bottom: 1px dashed rgba(75,232,255,0.2); padding: 6px 0; }
+  #qmenu-list .qname { color: #fff; letter-spacing: 1px; }
+  #qmenu-list .qkey { color: var(--amber); }
+  #qmenu-list .qorder { color: var(--cyan-dim); font-size: 10px; }
+
+  /* ---------- full panels ---------- */
+  .fullpanel {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: 640px; max-width: 92vw; max-height: 86vh; overflow-y: auto; pointer-events: auto;
+  }
+  .fullpanel .body { padding: 14px 18px; font-size: 12px; line-height: 1.7; }
+
+  #panel-pause .row { display: flex; gap: 10px; margin: 10px 0; align-items: center; }
+  #difficulty-row button { min-width: 90px; }
+  #controls-ref { columns: 2; font-size: 11px; color: #bfeeff; margin-top: 8px; }
+  #controls-ref div { break-inside: avoid; padding: 1px 0; }
+  #controls-ref b { color: var(--amber); display: inline-block; min-width: 70px; font-weight: normal; }
+  #dialogue-log { margin-top: 10px; max-height: 180px; overflow-y: auto; font-size: 11px; color: #9fdcec; border-top: 1px solid var(--panel-border); padding-top: 8px; }
+  #dialogue-log div { margin: 3px 0; }
+  #fps-readout { font-size: 10px; color: var(--cyan-dim); margin-top: 10px; }
+
+  #inv-salvage { display: flex; gap: 18px; font-size: 13px; margin-bottom: 10px; }
+  #inv-salvage b { color: #fff; font-weight: normal; }
+  #craft-list .recipe { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px dashed rgba(75,232,255,0.15); }
+  #wreck-panel { margin-top: 14px; border-top: 1px solid var(--panel-border); padding-top: 10px; }
+  #wreck-panel .tier { color: var(--violet); font-size: 14px; letter-spacing: 2px; }
+
+  #panel-orbital { width: 760px; }
+  #orbital-canvas { width: 100%; height: 420px; display: block; background: radial-gradient(ellipse at center, #100a24 0%, #05030d 100%); }
+  #orbital-caption { padding: 10px 16px; text-align: center; font-size: 12px; letter-spacing: 2px; min-height: 60px; }
+  #orbital-caption .locked { color: var(--red); }
+
+  #panel-end { text-align: center; width: 560px; }
+  #end-monologue { padding: 18px 26px; font-size: 13px; line-height: 1.9; color: #d9f6ff; text-align: left; white-space: pre-line; }
+  #end-stats { padding: 10px 26px 20px; font-size: 12px; color: var(--cyan-dim); line-height: 2; }
+  #panel-end h1 { font-size: 22px; letter-spacing: 8px; color: var(--violet); padding: 18px 0 4px; }
+
+  /* ---------- loading ---------- */
+  #loading {
+    position: absolute; inset: 0; background: #0a0714; display: flex;
+    flex-direction: column; align-items: center; justify-content: center; z-index: 100;
+    transition: opacity 0.8s;
+  }
+  #loading h1 { font-size: 28px; letter-spacing: 12px; color: var(--cyan); text-shadow: 0 0 24px rgba(75,232,255,0.7); }
+  #loading p { margin-top: 14px; font-size: 12px; color: var(--cyan-dim); letter-spacing: 2px; }
+  #loading .sub { margin-top: 40px; font-size: 11px; color: #5a5470; max-width: 480px; text-align: center; line-height: 1.8; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud">
+  <div id="vitals" class="panel">
+    <div class="bar-label">HEALTH</div><div class="bar"><div class="fill" id="health-fill"></div></div>
+    <div class="bar-label">SHIELD</div><div class="bar"><div class="fill" id="shield-fill"></div></div>
+    <div class="bar-label">STAMINA</div><div class="bar"><div class="fill" id="stamina-fill"></div></div>
+    <div id="xp-row"><span id="level-label">LV 1</span><div class="bar"><div class="fill" id="xp-fill" style="width:0%"></div></div></div>
+  </div>
+
+  <div id="salvage-row" class="panel">
+    <span>ALLOY <b id="sv-alloy">0</b></span>
+    <span>CIRCUIT <b id="sv-circuits">0</b></span>
+    <span>CELL <b id="sv-cells">0</b></span>
+    <span id="sv-cores">CORES 0</span>
+    <span id="sv-grenades">EMP 0</span>
+  </div>
+
+  <div id="weapon-panel" class="panel">
+    <div id="weapon-name">SCRAP RIFLE</div>
+    <div id="weapon-ammo">READY</div>
+  </div>
+
+  <div id="bark-ticker"></div>
+
+  <div id="compass" class="panel"><div id="compass-strip"></div></div>
+
+  <div id="target-frame" class="panel hidden">
+    <div id="tf-name">—</div>
+    <div id="tf-class">—</div>
+    <div class="bar-label">HULL</div><div class="bar"><div class="fill" id="tf-hull-fill"></div></div>
+    <div class="bar-label">STABILITY</div><div class="bar"><div class="fill" id="tf-stab-fill"></div></div>
+  </div>
+
+  <div id="boss-frame" class="panel hidden">
+    <div id="boss-name">COLOSSUS</div>
+    <div id="boss-plates"></div>
+    <div id="boss-hint"></div>
+  </div>
+
+  <div id="reticle"></div>
+  <div id="interact-prompt" class="panel hidden"><b>E</b> <span id="interact-label"></span></div>
+  <div id="build-hint" class="panel hidden"></div>
+  <div id="dmgnums"></div>
+  <div id="toasts"></div>
+  <div id="damage-flash"></div>
+</div>
+
+<div id="hack-radial" class="hidden">
+  <canvas id="hack-canvas" width="480" height="480"></canvas>
+  <div id="hack-hint">SPACE — SEVER LOCK ON HIGHLIGHTED ARCS</div>
+</div>
+
+<div id="qmenu" class="panel hidden">
+  <h2>COMMAND UPLINK</h2>
+  <div id="qmenu-list"></div>
+</div>
+
+<div id="panel-pause" class="panel fullpanel hidden">
+  <h2>SYSTEM PAUSED</h2>
+  <div class="body">
+    <div class="row"><button class="ui-btn" id="btn-resume">RESUME</button></div>
+    <div class="row">HACK DIFFICULTY:
+      <span id="difficulty-row">
+        <button class="ui-btn" data-diff="easy">EASY</button>
+        <button class="ui-btn active" data-diff="standard">STANDARD</button>
+        <button class="ui-btn" data-diff="hard">HARD</button>
+      </span>
+    </div>
+    <div id="controls-ref"></div>
+    <div id="dialogue-log"></div>
+    <div id="fps-readout"></div>
+  </div>
+</div>
+
+<div id="panel-inventory" class="panel fullpanel hidden">
+  <h2>INVENTORY // FABRICATOR</h2>
+  <div class="body">
+    <div id="inv-salvage"></div>
+    <div id="inv-stats"></div>
+    <div id="craft-list"></div>
+    <div id="wreck-panel">
+      <div class="tier"></div>
+      <div class="wreck-info"></div>
+      <button class="ui-btn" id="btn-upgrade">FEED CORES TO WRECK</button>
+    </div>
+  </div>
+</div>
+
+<div id="panel-orbital" class="panel fullpanel hidden">
+  <h2>ORBITAL RELAY // SYSTEM MAP</h2>
+  <canvas id="orbital-canvas"></canvas>
+  <div id="orbital-caption"></div>
+</div>
+
+<div id="panel-end" class="panel fullpanel hidden">
+  <h1>SIGNAL ACQUIRED</h1>
+  <div id="end-monologue"></div>
+  <div id="end-stats"></div>
+</div>
+
+<div id="loading">
+  <h1>SIGNAL DECAY</h1>
+  <p id="loading-status">CALIBRATING WRECK…</p>
+  <div class="sub">Sole survivor protocol engaged. Click to take control.<br>
+  WASD move · Mouse look · LMB fire · 1/2/3 weapons · E interact · Q command · TAB inventory · F camera · B build</div>
+</div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
