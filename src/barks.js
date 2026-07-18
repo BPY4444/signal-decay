@@ -106,6 +106,21 @@ export function initBarks(G) {
   }
   const bark = (idOrText) => say(String(idOrText));
 
+  /* ---------------- tutorial: teach the capture loop ---------------- */
+  bus.on('machine:damaged', (p) => {
+    if (p?.stab > 0 && p.e?.faction === 'hostile') {
+      once('tut_arc',
+        "That's the Arc Caster. Hold the beam — when its blue Stability bar empties, the machine drops and I can get in.", true);
+    }
+  });
+  bus.on('machine:disabled', (p) => {
+    if (p?.e?.faction !== 'hostile') return;
+    const range = G.progression?.hackRange?.() ?? 8;
+    const t = Math.round((G.diff?.() || { reboot: 25 }).reboot);
+    once('tut_disabled',
+      `It's down, not dead. Get within ${range} meters — my reach, not yours — and press E before it reboots. You have about ${t} seconds.`, true);
+  });
+
   /* ---------------- triggers ---------------- */
   bus.on('hack:start', () => say(rngPick(B.hackStart)));
   bus.on('hack:success', () => say(rngPick(B.hackGood)));
@@ -145,12 +160,18 @@ export function initBarks(G) {
 
   /* ---------------- update: intro, first-scan, idle ---------------- */
   let introT = 2.5;
+  let objectiveT = 14;
   function update(dt) {
     cooldown -= dt;
     lowHpCd -= dt;
     idleTimer += dt;
 
     if (introT > 0) { introT -= dt; if (introT <= 0) once('bark_intro', B.intro[0], true); }
+    if (objectiveT > 0) {
+      objectiveT -= dt;
+      if (objectiveT <= 0) once('tut_objective',
+        "First lesson. See the crab-machines grazing the glowing nodes? Press 2 for the Arc Caster, empty one's blue bar, walk up, press E. Bring me a pet.", true);
+    }
 
     // first-scan detection: crosshair dwell 0.6s per type
     const t = S.crosshairTarget;

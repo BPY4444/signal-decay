@@ -30,15 +30,15 @@ export function initAudio(G) {
   /* ---------------- ambient drone pad ---------------- */
   // zone voicings: [root, interval ratio, filter cutoff, level]
   const ZONES = {
-    crashfield: { root: 82.4, ratio: 1.26, cutoff: 520, level: 0.055 },   // warm maj-3rd-ish
-    drysea:     { root: 73.4, ratio: 1.5,  cutoff: 380, level: 0.05 },    // hollow fifth
-    spire:      { root: 61.7, ratio: 1.067, cutoff: 240, level: 0.06 },   // dark minor 2nd
+    crashfield: { root: 82.4, ratio: 1.26, cutoff: 520, level: 0.026 },   // warm maj-3rd-ish
+    drysea:     { root: 73.4, ratio: 1.5,  cutoff: 380, level: 0.024 },   // hollow fifth
+    spire:      { root: 61.7, ratio: 1.067, cutoff: 240, level: 0.03 },   // dark minor 2nd
   };
   const padGain = ctx.createGain(); padGain.gain.value = 0;
   const padFilter = ctx.createBiquadFilter();
   padFilter.type = 'lowpass'; padFilter.frequency.value = 480; padFilter.Q.value = 1.2;
   const padDelay = ctx.createDelay(1.0); padDelay.delayTime.value = 0.31;
-  const padFb = ctx.createGain(); padFb.gain.value = 0.35;
+  const padFb = ctx.createGain(); padFb.gain.value = 0.22;
   padFilter.connect(padGain);
   padGain.connect(master);
   padGain.connect(padDelay); padDelay.connect(padFb); padFb.connect(padDelay);
@@ -172,12 +172,55 @@ export function initAudio(G) {
     try { SFX[p.name](p); } catch (_) {}
   });
 
+  /* ---------------- critter voices: nearby machines chirp/click/groan ---------------- */
+  function relPan(mpos) {
+    const cam = G.engine?.camera;
+    if (!cam) return 0;
+    const el = cam.matrixWorld.elements; // column 0 = camera right
+    const dx = mpos.x - cam.position.x, dz = mpos.z - cam.position.z;
+    const len = Math.hypot(dx, dz) || 1;
+    return clamp((el[0] * dx + el[2] * dz) / len, -1, 1) * 0.8;
+  }
+  const VOICES = {
+    drifter(g, pan) { tone({ freq: 880 + Math.random() * 140, freqEnd: 700, type: 'sine', dur: 0.22, gain: g * 0.6, pan }); },
+    skitter(g, pan) { // chitter: 3-4 rapid clicks
+      const n = 3 + (Math.random() * 2 | 0);
+      for (let i = 0; i < n; i++) setTimeout(() => burst({ dur: 0.02, gain: g, filterFreq: 2600 + Math.random() * 900, filterType: 'bandpass', q: 8, pan }), i * (55 + Math.random() * 30));
+    },
+    strider(g, pan) { tone({ freq: 130, freqEnd: 90, type: 'sawtooth', dur: 0.3, gain: g * 0.7, pan, filter: { type: 'lowpass', freq: 500 } }); setTimeout(() => tone({ freq: 420, freqEnd: 300, type: 'triangle', dur: 0.12, gain: g * 0.5, pan }), 140); },
+    warden(g, pan) { tone({ freq: 62, freqEnd: 48, type: 'sine', dur: 0.35, gain: g * 1.2, pan }); burst({ dur: 0.12, gain: g * 0.5, filterFreq: 300, pan }); },
+    halo(g, pan) { burst({ dur: 0.5, gain: g * 0.5, filterFreq: 1300, filterType: 'bandpass', q: 2.5, freqEnd: 700, pan }); },
+    colossus(g, pan) { if (S.flags.bossActive) { tone({ freq: 42, freqEnd: 34, type: 'sine', dur: 1.1, gain: g * 1.6, pan }); } },
+  };
+  let critterT = 1.5;
+  function critterVoices(dt) {
+    critterT -= dt;
+    if (critterT > 0) return;
+    critterT = 0.5 + Math.random() * 1.1;
+    const pp = G.player?.pos;
+    if (!pp) return;
+    // pick one random audible machine within 26m
+    const near = [];
+    for (const m of S.machines) {
+      if (m.dying) continue;
+      const d = m.pos.distanceTo(pp);
+      if (d < 26) near.push([m, d]);
+    }
+    if (!near.length) return;
+    const [m, d] = near[(Math.random() * near.length) | 0];
+    const v = VOICES[m.type];
+    if (!v) return;
+    const g = 0.055 * (1 - d / 30);
+    v(Math.max(0.008, g), relPan(m.pos));
+  }
+
   /* ---------------- update: crossfades + gusts + distant one-shots ---------------- */
   let tick = 0;
   let curZone = null;
   let distantT = 20;
 
   function update(dt) {
+    if (ctx.state === 'running' && !S.paused) critterVoices(dt);
     tick -= dt;
     riserT += dt;
     if (riserT > 8) { riserT = 0; if (S.danger > 0.3) { riser.frequency.setValueAtTime(80, now()); riser.frequency.exponentialRampToValueAtTime(320, now() + 8); } }
@@ -207,7 +250,7 @@ export function initAudio(G) {
     windFilter.frequency.setTargetAtTime(400 + Math.random() * 500, t, 1.5);
 
     // combat layer
-    const target = S.danger > 0.3 ? 0.22 : 0;
+    const target = S.danger > 0.3 ? 0.15 : 0;
     combatGain.gain.setTargetAtTime(target, t, target > 0 ? 0.4 : 1.2);
     throbAmp.gain.setTargetAtTime(target > 0 ? 0.5 : 0, t, 0.5);
 
@@ -221,5 +264,10 @@ export function initAudio(G) {
     }
   }
 
-  return { update };
+  let masterVol = 0.5;
+  function setMasterVolume(v) {
+    masterVol = clamp(v, 0, 1);
+    master.gain.setTargetAtTime(masterVol, now(), 0.05);
+  }
+  return { update, setMasterVolume, getMasterVolume: () => masterVol };
 }

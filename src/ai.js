@@ -1283,7 +1283,9 @@ export function initAI(G) {
       if (e.state === 'DISABLED' || e === S.mounted || e === S.piloting) return;
       const A = ai(e);
       if (e.type === 'skitter') {
-        if (e.state !== 'FLEE') setState(e, 'FLEE');        // scuttle-flee briefly, then resume
+        // scuttle-flee only from kinetic fire — EMP just tingles. Keeping it grazing under
+        // the arc beam is what makes the skitter the hacking tutorial (BRIEF §4.2).
+        if (p.hull > 0.5 && e.state !== 'FLEE') setState(e, 'FLEE');
         return;
       }
       if (e.type === 'drifter') {

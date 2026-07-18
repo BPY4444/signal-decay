@@ -220,6 +220,24 @@ export function initUI(G) {
   });
   $('btn-resume')?.addEventListener('click', () => closeAll());
 
+  // master volume row (audio inits after ui, so read it lazily on click)
+  {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = 'VOLUME: <button class="ui-btn" id="vol-down">−</button> <span id="vol-label" style="min-width:44px;text-align:center">50%</span> <button class="ui-btn" id="vol-up">+</button>';
+    const body = document.querySelector('#panel-pause .body');
+    body?.insertBefore(row, el.controlsRef);
+    const label = row.querySelector('#vol-label');
+    const bump = (d) => {
+      const v = clamp((G.audio?.getMasterVolume?.() ?? 0.5) + d, 0, 1);
+      G.audio?.setMasterVolume?.(v);
+      label.textContent = Math.round(v * 100) + '%';
+      bus.emit('sfx', { name: 'ui' });
+    };
+    row.querySelector('#vol-down').addEventListener('click', () => bump(-0.1));
+    row.querySelector('#vol-up').addEventListener('click', () => bump(0.1));
+  }
+
   function renderInventory() {
     el.invSalvage.innerHTML =
       `<span>ALLOY <b>${S.salvage.alloy}</b></span><span>CIRCUITS <b>${S.salvage.circuits}</b></span>` +
@@ -439,7 +457,8 @@ export function initUI(G) {
       // drop below the boss frame when it's up
       el.targetFrame.style.top = S.flags.bossActive ? '150px' : '90px';
       el.tfName.textContent = t.cfg.name.toUpperCase() + (t.captured ? ' — YOURS' : '');
-      el.tfClass.textContent = `${t.cfg.cls.toUpperCase()} · TIER ${t.cfg.tier}` + (t.state === 'DISABLED' ? ' · DISABLED' : '');
+      el.tfClass.textContent = `${t.cfg.cls.toUpperCase()} · TIER ${t.cfg.tier}` +
+        (t.state === 'DISABLED' ? ` · DISABLED — GET WITHIN ${G.progression.hackRange()}m + E` : '');
       el.tfHull.style.width = clamp(t.hull / t.hullMax * 100, 0, 100) + '%';
       el.tfStab.style.width = clamp(t.stability / t.stabilityMax * 100, 0, 100) + '%';
       el.reticle.classList.toggle('hostile', t.faction === 'hostile');
@@ -449,11 +468,13 @@ export function initUI(G) {
       el.reticle.classList.remove('hostile');
     }
 
-    // interact prompt
+    // interact prompt (hint kind = informational, no E keycap)
     const it = S.interactTarget;
     if (it) {
       el.interactPrompt.classList.remove('hidden');
       el.interactLabel.textContent = it.label;
+      const keycap = el.interactPrompt.querySelector('b');
+      if (keycap) keycap.style.display = it.kind === 'hint' ? 'none' : '';
     } else el.interactPrompt.classList.add('hidden');
 
     // boss frame

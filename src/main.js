@@ -76,8 +76,11 @@ function computeInteractTarget() {
 
   const p = G.player.pos;
 
-  // hackable disabled machine (or colossus open hack window) in WRECK range
+  // hackable disabled machine (or colossus open hack window) in WRECK range —
+  // and a "get closer" hint when one is disabled but out of reach (the #1 confusion:
+  // the Arc Caster reaches 22m, WRECK T1 only 8m)
   let best = null, bestD = Infinity;
+  let far = null, farD = Infinity;
   const range = G.progression.hackRange();
   for (const e of S.machines) {
     if (e.dying || e.captured) continue;
@@ -85,9 +88,17 @@ function computeInteractTarget() {
     if (!hackable) continue;
     const d = p.distanceTo(e.pos);
     if (d <= range && d < bestD && G.progression.canHack(e)) { best = e; bestD = d; }
+    else if (d > range && d <= 45 && d < farD && e.cfg.tier <= S.wreckTier) { far = e; farD = d; }
   }
   if (best) {
     S.interactTarget = { kind: 'hack', entity: best, label: `HACK ${best.cfg.name.toUpperCase()}` };
+    return;
+  }
+  if (far) {
+    S.interactTarget = {
+      kind: 'hint', entity: far,
+      label: `${far.cfg.name.toUpperCase()} DISABLED — GET WITHIN ${range}m (${Math.max(1, Math.round(farD - range))}m closer)`,
+    };
     return;
   }
 
@@ -109,7 +120,7 @@ function handleGlobalKeys() {
   // E — interact
   if (input.pressed('KeyE') && S.mode === 'play') {
     const t = S.interactTarget;
-    if (t) {
+    if (t && t.kind !== 'hint') {
       input.consume('KeyE');
       if (t.kind === 'dismount') G.mounts.dismount();
       else if (t.kind === 'hack') G.hacking.start(t.entity);
