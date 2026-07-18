@@ -55,6 +55,8 @@ export const S = {
   won: false,
   nearFabricator: false,
   nearConsole: false,
+  nearBench: false,
+  mods: { rifle: 1, arc: 1 },   // gear multipliers from bench crafting
   flags: {},
 };
 

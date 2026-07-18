@@ -74,10 +74,34 @@ export function initBase(G) {
     return g;
   }
 
+  function buildBench(mat) {
+    const g = new THREE.Group();
+    const top = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.12, 1.1), mat || bodyMat);
+    top.position.y = 1.0; top.castShadow = !mat;
+    g.add(top);
+    for (const [sx, sz] of [[-0.95, -0.4], [0.95, -0.4], [-0.95, 0.4], [0.95, 0.4]]) {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 1.0, 8), mat || darkMat);
+      leg.position.set(sx, 0.5, sz);
+      g.add(leg);
+    }
+    const rig = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 0.4), mat || darkMat);
+    rig.position.set(-0.6, 1.24, 0);
+    g.add(rig);
+    const holo = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.5), mat || glowMat);
+    holo.position.set(0.35, 1.5, 0);
+    holo.rotation.x = -0.4;
+    g.add(holo);
+    const coil = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.05, 8, 18), mat || glowMat);
+    coil.position.set(-0.6, 1.5, 0);
+    g.add(coil);
+    return g;
+  }
+
   const placeables = [
     { id: 'foundation', name: 'FOUNDATION', cost: { alloy: 10 }, build: buildFoundation },
     { id: 'wall', name: 'WALL', cost: { alloy: 5 }, build: buildWall },
     { id: 'turret', name: 'AUTO-TURRET', cost: { alloy: 15, circuits: 10, cells: 2 }, build: buildTurret },
+    { id: 'bench', name: 'CRAFT BENCH', cost: { alloy: 8, circuits: 4 }, build: buildBench },
   ];
 
   const placed = [];      // { id, group, pos, head?, muzzle?, scanT, fireT, target }
@@ -105,7 +129,7 @@ export function initBase(G) {
     if (!hintEl) return;
     const def = placeables[sel];
     hintEl.textContent =
-      `BUILD // [1/2/3] ${placeables.map((p, i) => (i === sel ? '▶' + p.name : p.name)).join('  ')} — ${costText(def)}` +
+      `BUILD // [1-${placeables.length}] ${placeables.map((p, i) => (i === sel ? '▶' + p.name : p.name)).join('  ')} — ${costText(def)}` +
       (valid ? '  · LMB PLACE' : '  · INVALID') + '  · B EXIT';
   }
 
@@ -166,6 +190,7 @@ export function initBase(G) {
       head: group.userData.head || null, muzzle: group.userData.muzzle || null,
       scanT: 0, fireT: 0, target: null,
     });
+    bus.emit('built', { id: def.id });
     bus.emit('sfx', { name: 'ui' });
   }
 
@@ -209,7 +234,7 @@ export function initBase(G) {
     tickTurrets(dt);
     if (S.mode !== 'build') return;
 
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < placeables.length; i++) {
       if (input.pressed('Digit' + (i + 1))) {
         input.consume('Digit' + (i + 1));
         sel = i; makeGhost();

@@ -153,6 +153,21 @@ export function initBarks(G) {
     if (B.orbital[k]) once('bark_orb_' + k, B.orbital[k]);
   });
   bus.on('mount:on', () => once('bark_mount', B.mountFirst));
+  bus.on('harvest', (p) => {
+    if (p?.hand) once('bark_harvest',
+      "You've discovered picking things up. Two hundred millennia of primate development, vindicated. The crabs do it faster — capture more of them.");
+  });
+  bus.on('built', (p) => {
+    if (p?.id === 'bench') once('bark_bench',
+      "A crafting bench. Crude, but it lets me pattern better hardware than that fabricator's safety-locked menus. Stand at it and open your inventory.", true);
+    else if (p?.id === 'turret') once('bark_turret',
+      "A gun that aims itself. You're automating yourself out of the one job you had.");
+  });
+  bus.on('crafted', (p) => {
+    if (p?.id === 'amplifier') once('bark_amp', "Arc Amplifier online. Machines will drop forty percent faster. My generosity is wasted on you.");
+    else if (p?.id === 'overdrive') once('bark_od', "Rifle overdriven. Your metal tube now throws metal harder. Science.");
+    else if (p?.id === 'capacitor') once('bark_capac', "Shield capacitor installed. You are now marginally harder to kill. I'm cautiously encouraged.");
+  });
   bus.on('colossus:hacked', (p) => {
     if (p?.count === 1) say("One lock severed. It noticed. So did its friends — incoming.", true);
     else if (p?.count === 2) say("Two of three. The reinforcements are a compliment. Take it as one.", true);
@@ -185,6 +200,12 @@ export function initBarks(G) {
         }
       } else scanHold = { type: t.type, t: 0 };
     } else scanHold.type = null;
+
+    // capacity-full nudge
+    if (S.interactTarget?.kind === 'hint' && S.interactTarget.label?.includes('CAPACITY')) {
+      once('bark_capacity',
+        "I can't hold another leash at this tier. Feed me Precursor Cores — elite machines drop them — and I'll grow more hands.", true);
+    }
 
     // locked gate nudge
     if (S.wreckTier < 3 && G.world?.positions?.spireGate && G.player &&

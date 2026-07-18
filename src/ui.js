@@ -6,10 +6,10 @@ import { bus, S, input, lockPointer, unlockPointer, clamp, makeCanvasTexture, fb
 const TIER_NAMES = { 1: 'T1 FRAGMENT', 2: 'T2 COHERENT', 3: 'T3 INTEGRATED', 4: 'T4 ASCENDANT' };
 const TIER_COST = { 2: 1, 3: 2, 4: 3 };
 const TIER_UNLOCKS = {
-  1: 'HACK: DRIFTER-CLASS · RANGE 8m · 1 UNIT',
-  2: 'HACK: STRIDER-CLASS · RANGE 12m · 2 UNITS · EMP GRENADE CRAFT',
-  3: 'HACK: WARDENS · RANGE 15m · 3 UNITS · FLIGHT OVERRIDE · SPIRE GATE',
-  4: 'HACK: THE COLOSSUS · 4 UNITS',
+  1: 'HACK: DRIFTER-CLASS · RANGE 8m · 2 UNITS',
+  2: 'HACK: STRIDER-CLASS · RANGE 12m · 4 UNITS · EMP GRENADE CRAFT',
+  3: 'HACK: WARDENS · RANGE 15m · 6 UNITS · FLIGHT OVERRIDE · SPIRE GATE',
+  4: 'HACK: THE COLOSSUS · 10 UNITS',
 };
 const CONTROLS = [
   ['WASD', 'move'], ['MOUSE', 'look / aim'], ['LMB', 'fire / lunge (mounted)'],

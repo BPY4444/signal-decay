@@ -81,17 +81,27 @@ function computeInteractTarget() {
   // the Arc Caster reaches 22m, WRECK T1 only 8m)
   let best = null, bestD = Infinity;
   let far = null, farD = Infinity;
+  let atCap = null;
   const range = G.progression.hackRange();
+  const capFull = S.captured.length >= G.progression.capacity();
   for (const e of S.machines) {
     if (e.dying || e.captured) continue;
     const hackable = e.state === 'DISABLED' || (e.type === 'colossus' && e.hackWindow > 0);
     if (!hackable) continue;
     const d = p.distanceTo(e.pos);
     if (d <= range && d < bestD && G.progression.canHack(e)) { best = e; bestD = d; }
+    else if (d <= range && capFull && e.cfg.tier <= S.wreckTier && e.type !== 'colossus') { atCap = e; }
     else if (d > range && d <= 45 && d < farD && e.cfg.tier <= S.wreckTier) { far = e; farD = d; }
   }
   if (best) {
     S.interactTarget = { kind: 'hack', entity: best, label: `HACK ${best.cfg.name.toUpperCase()}` };
+    return;
+  }
+  if (atCap) {
+    S.interactTarget = {
+      kind: 'hint', entity: atCap,
+      label: `WRECK AT CAPACITY ${S.captured.length}/${G.progression.capacity()} — FEED CORES TO WRECK (TAB) FOR MORE UNITS`,
+    };
     return;
   }
   if (far) {
@@ -111,6 +121,16 @@ function computeInteractTarget() {
     }
   }
 
+  // hand-harvest a recharged resource node
+  for (const n of G.world.nodes) {
+    if ((n.cooldownT || 0) > 0) continue;
+    if (p.distanceTo(n.pos) < 3.2) {
+      S.interactTarget = { kind: 'harvest', node: n, label: `HARVEST ${n.type.toUpperCase()}` };
+      return;
+    }
+  }
+
+  if (S.nearBench) { S.interactTarget = { kind: 'bench', label: 'CRAFTING BENCH' }; return; }
   if (S.nearFabricator) { S.interactTarget = { kind: 'fabricator', label: 'FABRICATOR' }; return; }
   if (S.nearConsole) { S.interactTarget = { kind: 'console', label: 'ORBITAL MAP' }; return; }
   S.interactTarget = null;
@@ -125,6 +145,8 @@ function handleGlobalKeys() {
       if (t.kind === 'dismount') G.mounts.dismount();
       else if (t.kind === 'hack') G.hacking.start(t.entity);
       else if (t.kind === 'mount') G.mounts.mount(t.entity);
+      else if (t.kind === 'harvest') G.progression.harvestNode(t.node);
+      else if (t.kind === 'bench') bus.emit('ui:open', { panel: 'fabricator' });
       else if (t.kind === 'fabricator') bus.emit('ui:open', { panel: 'fabricator' });
       else if (t.kind === 'console') bus.emit('ui:open', { panel: 'orbital' });
     }

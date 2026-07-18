@@ -70,13 +70,14 @@ export function initCapture(G) {
   function renderMenu() {
     if (!qlist) return;
     const cap = G.progression.capacity();
-    let html = `<div class="qorder">UNITS ${S.captured.length}/${cap} — [1-4] SELECT · <span class="qkey">F</span> FOLLOW · <span class="qkey">T</span> STAY · <span class="qkey">G</span> GUARD HERE · <span class="qkey">R</span> ATTACK MY TARGET · <span class="qkey">N</span> DIET (SKITTER) · <span class="qkey">P</span> PILOT (DRIFTER) · Q CLOSE</div>`;
+    let html = `<div class="qorder">UNITS ${S.captured.length}/${cap} — [1-9,0] SELECT · <span class="qkey">F</span> FOLLOW · <span class="qkey">T</span> STAY · <span class="qkey">G</span> GUARD HERE · <span class="qkey">R</span> ATTACK MY TARGET · <span class="qkey">N</span> DIET (SKITTER) · <span class="qkey">P</span> PILOT (DRIFTER) · Q CLOSE</div>`;
     if (!S.captured.length) {
       html += `<div class="qunit"><span class="qname">NO CAPTURED UNITS</span><div class="qorder">Disable a machine with the Arc Caster, then hack it (E).</div></div>`;
     }
     S.captured.forEach((e, i) => {
       const selMark = i === selIdx ? '▶ ' : '&nbsp;&nbsp;';
-      html += `<div class="qunit">${selMark}<span class="qkey">[${i + 1}]</span> <span class="qname">${e.cfg.name.toUpperCase()}</span>` +
+      const key = i < 9 ? i + 1 : (i === 9 ? 0 : '·');
+      html += `<div class="qunit">${selMark}<span class="qkey">[${key}]</span> <span class="qname">${e.cfg.name.toUpperCase()}</span>` +
         ` <span class="qorder">T${e.cfg.tier} · HULL ${Math.round(e.hull)}/${e.hullMax} · ${orderLabel(e)}</span></div>`;
     });
     qlist.innerHTML = html;
@@ -99,9 +100,10 @@ export function initCapture(G) {
 
   function menuInput() {
     if (input.pressed('KeyQ') || input.pressed('Escape')) { input.consume('KeyQ'); closeMenu(); return; }
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 9; i++) {
       if (input.pressed('Digit' + (i + 1)) && i < S.captured.length) { selIdx = i; renderMenu(); }
     }
+    if (input.pressed('Digit0') && S.captured.length > 9) { selIdx = 9; renderMenu(); }
     const e = S.captured[selIdx];
     if (!e) return;
     if (input.pressed('KeyF')) { setOrder(e, { mode: 'follow' }); renderMenu(); }

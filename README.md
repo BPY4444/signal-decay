@@ -20,10 +20,10 @@ Three.js loads from a CDN. If your machine struggles, add `?gfx=low` to the URL.
 | SPACE | Jump · hack-arc sever · climb (Halo) |
 | LMB / RMB | Fire / aim · lunge-bite on a Strider |
 | 1 / 2 / 3 | Scrap Rifle / Arc Caster / EMP Grenade |
-| E | Interact: hack, mount/dismount, fabricator, orbital console |
+| E | Interact: hack, mount, harvest nodes, bench/fabricator, console |
 | Q | Command captured units (orders, node diet, pilot Drifter) |
 | TAB | Inventory / craft / WRECK upgrades |
-| F | First ↔ third person · B build mode · ESC pause |
+| F | First ↔ third person · B build mode (incl. Craft Bench) · ESC pause |
 
 ## Run locally
 

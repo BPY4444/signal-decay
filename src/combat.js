@@ -467,7 +467,7 @@ export function initCombat(G) {
       _end.copy(hit.point);
       burst(hit.point, 0xffd9a0, 6, 6.5);
       bus.emit('sfx', { name: 'hit' });
-      damageMachine(hit.entity, { hull: 12 }, 'player', hit.part, hit.point);
+      damageMachine(hit.entity, { hull: 12 * (S.mods?.rifle || 1) }, 'player', hit.part, hit.point);
     } else {
       const g = groundHit(_camPos, _dir, 120);
       if (g) {
@@ -500,7 +500,7 @@ export function initCombat(G) {
     while (arcTickT >= 0.1) {
       arcTickT -= 0.1;
       if (hit && hit.entity) {
-        let stab = 3;   // 30 stab/s
+        let stab = 3 * (S.mods?.arc || 1);   // 30 stab/s base, arc amplifier scales
         const hull = 0.2; // 2 hull/s
         if (hit.entity.state === 'PULL_UP') stab *= 2;
         damageMachine(hit.entity, { hull, stab }, 'player', hit.part, hit.point);

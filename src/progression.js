@@ -5,7 +5,7 @@ import { bus, S, clamp } from './core.js';
 
 const TIER_COST = { 2: 1, 3: 2, 4: 3 };          // cores to reach tier N
 const HACK_RANGE = [0, 8, 12, 15, 15];
-const CAPACITY = [0, 1, 2, 3, 4];
+const CAPACITY = [0, 2, 4, 6, 10];   // army-sized: player asked for a horde, not a duo
 
 export function initProgression(G) {
 
@@ -57,26 +57,67 @@ export function initProgression(G) {
   }
 
   /* ---------------- crafting ---------------- */
+  // where 'bench' = requires standing at a Crafting Bench (B to build one, 8 alloy + 4 circuits)
   const recipes = [
     {
       id: 'grenade', name: 'EMP GRENADE',
       cost: { alloy: 5, circuits: 3, cells: 1 },
-      req: 'WRECK T2',
-      canCraft: () => S.wreckTier >= 2,
+      blocked: () => (S.wreckTier < 2 ? 'WRECK T2 REQUIRED' : null),
+      apply: () => { S.grenades++; },
+    },
+    {
+      id: 'capacitor', name: 'SHIELD CAPACITOR  (+25 SHIELD)',
+      cost: { alloy: 8, circuits: 4, cells: 2 }, oneTime: true,
+      blocked: () => (S.flags.crafted_capacitor ? 'INSTALLED' : !S.nearBench ? 'NEEDS CRAFTING BENCH' : null),
+      apply: () => { G.player.shieldMax += 25; G.player.shield += 25; },
+    },
+    {
+      id: 'amplifier', name: 'ARC AMPLIFIER  (+40% DISABLE SPEED)',
+      cost: { alloy: 10, circuits: 8, cells: 3 }, oneTime: true,
+      blocked: () => (S.flags.crafted_amplifier ? 'INSTALLED' : !S.nearBench ? 'NEEDS CRAFTING BENCH' : null),
+      apply: () => { S.mods.arc = 1.4; },
+    },
+    {
+      id: 'overdrive', name: 'RIFLE OVERDRIVE  (+50% DAMAGE)',
+      cost: { alloy: 14, circuits: 6, cells: 3 }, oneTime: true,
+      blocked: () => (S.flags.crafted_overdrive ? 'INSTALLED'
+        : S.wreckTier < 2 ? 'WRECK T2 REQUIRED'
+        : !S.nearBench ? 'NEEDS CRAFTING BENCH' : null),
+      apply: () => { S.mods.rifle = 1.5; },
     },
   ];
+  // ui compatibility: expose live req text + canCraft
+  for (const r of recipes) {
+    r.canCraft = () => !r.blocked();
+    Object.defineProperty(r, 'req', { get: () => r.blocked() || '' });
+  }
 
   function craft(recipeId) {
     const r = recipes.find(x => x.id === recipeId);
     if (!r) return { ok: false, reason: 'UNKNOWN PATTERN' };
-    if (!r.canCraft()) return { ok: false, reason: r.req + ' REQUIRED' };
+    const why = r.blocked();
+    if (why) return { ok: false, reason: why };
     for (const k in r.cost) {
       if ((S.salvage[k] || 0) < r.cost[k]) return { ok: false, reason: 'INSUFFICIENT SALVAGE' };
     }
     for (const k in r.cost) S.salvage[k] -= r.cost[k];
-    if (recipeId === 'grenade') S.grenades++;
-    bus.emit('sfx', { name: 'ui' });
+    if (r.oneTime) S.flags['crafted_' + r.id] = true;
+    r.apply();
+    bus.emit('crafted', { id: r.id });
+    bus.emit('sfx', { name: 'levelup' });
     return { ok: true };
+  }
+
+  /* ---------------- hand-harvesting resource nodes ---------------- */
+  function harvestNode(n) {
+    if (!n || (n.cooldownT || 0) > 0) return;
+    n.cooldownT = 18;
+    if (n.mesh) n.mesh.scale.setScalar(0.45); // regrows as it recharges
+    const amount = 3;
+    addSalvage({ [n.type]: amount });
+    addXP(3);
+    bus.emit('harvest', { type: n.type, n: amount, pos: n.pos.clone(), hand: true });
+    bus.emit('sfx', { name: 'harvest' });
   }
 
   /* ---------------- XP + core listeners ---------------- */
@@ -112,17 +153,34 @@ export function initProgression(G) {
   });
   bus.on('scan:first', () => addXP(10));
 
-  /* ---------------- proximity ---------------- */
+  /* ---------------- proximity + node recharge ---------------- */
   function update(dt) {
+    // node cooldowns tick + regrow
+    const nodes = G.world?.nodes;
+    if (nodes) for (const n of nodes) {
+      if ((n.cooldownT || 0) > 0) {
+        n.cooldownT -= dt;
+        if (n.mesh) {
+          const s = n.cooldownT <= 0 ? 1 : 0.45 + 0.55 * (1 - n.cooldownT / 18);
+          n.mesh.scale.setScalar(s);
+        }
+      }
+    }
+
     const P = G.player?.pos;
     const pos = G.world?.positions;
     if (!P || !pos) return;
     S.nearFabricator = pos.fabricator ? P.distanceTo(pos.fabricator) < 4.5 : false;
     S.nearConsole = pos.shuttleConsole ? P.distanceTo(pos.shuttleConsole) < 4.5 : false;
+    S.nearBench = false;
+    const placed = G.base?.placed;
+    if (placed) for (const b of placed) {
+      if (b.id === 'bench' && P.distanceTo(b.pos) < 4.5) { S.nearBench = true; break; }
+    }
   }
 
   return {
     update, addXP, addSalvage, canHack, hackRange, capacity,
-    tryUpgradeWreck, craft, recipes, xpNeeded,
+    tryUpgradeWreck, craft, recipes, xpNeeded, harvestNode,
   };
 }
